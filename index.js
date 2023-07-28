@@ -1,10 +1,12 @@
 import express from 'express'
-import inicioRouter from './router/inicioRouter.js'
+import inicioRouter from '../backend/router/inicioRouter.js'
 import appRouter from './router/appRouter.js' // Atencion
 import dataBase from './config/db.js'
 import cors from "cors"
 import dotenv from 'dotenv/config'
+import fs from 'fs'
 
+// console.log(fs.existsSync('../backend/router/inicioRouter.js'))
 const app = express()
 
 app.use(express.urlencoded({extended: true}))

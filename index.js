@@ -1,5 +1,5 @@
 import express from 'express'
-import inicioRouter from './router/InicioRouter.js'
+import inicioRouter from './router/inicioRouter.js'
 import appRouter from './router/appRouter.js' // Atencion
 import dataBase from './config/db.js'
 import cors from "cors"

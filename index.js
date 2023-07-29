@@ -27,7 +27,8 @@ const corsOptions = {
     }
 }
 
-app.use(cors( corsOptions ))
+// app.use(cors( corsOptions ))
+
 app.use('/inisa',cors( corsOptions ), inicioRouter )
 app.use('/inisa/admin',cors( corsOptions ), appRouter )
 

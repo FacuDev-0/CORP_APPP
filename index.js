@@ -28,12 +28,12 @@ const corsOptions = {
 }
 
 app.use(cors( corsOptions ))
-
+console.log(clienteURL)
 app.use('/inisa',cors( corsOptions ), inicioRouter )
 app.use('/inisa/admin',cors( corsOptions ), appRouter )
 
 const PORT = process.env.PORT || 4000
 
 app.listen(PORT, () =>{
-    console.log('Base de Datos conectada' + PORT)
+    console.log('Base de Datos conectada en: ' + PORT)
 })

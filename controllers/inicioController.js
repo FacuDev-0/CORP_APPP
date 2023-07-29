@@ -10,26 +10,26 @@ const autenticar = async (req, res) => {
     
     try{
         //Consultar el usuario
-        const usuario = await Users.findOne({ where:{ email } })
-        if(!usuario) {
-            res.status(404).json({msg: 'Correo Invalidoo'})
-            return
-        }
-        //Existe Usuario: comparar password hasheado con el ingresado
-        const confirmPass = await new BcryptObj(usuario).confirmPass(password)
-        if(!confirmPass){
-            return res.status(404).json({msg: 'Password Invalido'})
-        } 
+        // const usuario = await Users.findOne({ where:{ email } })
+        // if(!usuario) {
+        //     res.status(404).json({msg: 'Correo Invalidoo'})
+        //     return
+        // }
+        // //Existe Usuario: comparar password hasheado con el ingresado
+        // const confirmPass = await new BcryptObj(usuario).confirmPass(password)
+        // if(!confirmPass){
+        //     return res.status(404).json({msg: 'Password Invalido'})
+        // } 
 
-        const usuarioObj = {
-            name: 'Facundo',
-            email: usuario.email,
-            id: usuario.id,
-            token: generarJWT(usuario.id)
-        }
+        // const usuarioObj = {
+        //     name: 'Facundo',
+        //     email: usuario.email,
+        //     id: usuario.id,
+        //     token: generarJWT(usuario.id)
+        // }
 
         //Password Correcto: Enviar respuesta al Cliente
-        res.status(200).json({usuarioObj})
+        res.status(200).json({msg: 'desde inicio'})
     }catch(error){
         res.status(400).json({msg: "Hubo un error"})
     }

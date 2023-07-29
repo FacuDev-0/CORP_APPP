@@ -10,6 +10,13 @@ import {
 
 const router = express.Router()
 
+router.get('/', async (req,res) => {
+    try{
+        res.status(200).json({msg: 'desde servidor'})
+    }catch(error){
+        res.status(400).json({msg: 'desde servidor'})
+    }
+})
 router.post('/', autenticar)
 router.post('/registrarUsuario', registrarUsuario)
 router.get('/confirmar/:token', confirmarRegistro)

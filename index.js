@@ -27,7 +27,7 @@ const corsOptions = {
     }
 }
 
-app.use(cors( corsOptions ))
+// app.use(cors( corsOptions ))
 app.get('/', (req,res) =>{
   console.log('apppp')
   res.status(200).json({msg: 'desde app'})

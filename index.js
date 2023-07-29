@@ -28,7 +28,10 @@ const corsOptions = {
 }
 
 app.use(cors( corsOptions ))
-console.log(clienteURL)
+app.get('/', (req,res) =>{
+  console.log('apppp')
+  res.status(200).json({msg: 'desde app'})
+})
 app.use('/inisa',cors( corsOptions ), inicioRouter )
 app.use('/inisa/admin',cors( corsOptions ), appRouter )
 

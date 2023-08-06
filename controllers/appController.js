@@ -1,16 +1,18 @@
+import { Storage } from "@google-cloud/storage"
 import Expedientes from "../models/expediente.js"
 import DocumentsUp from "../models/documents.js"
 import generarId from "../helpers/generarID.js"
-import path from "path"
-import fs from 'fs'
 
-const __dirname = new URL(import.meta.url).pathname.substring(1)
-const __pathDocuments = path.join(__dirname, '../../', 'documents')
+const storage = new Storage({
+    projectId: process.env.GCP_STORAGE_PROJECTID,
+    keyFilename: process.env.GCP_STORAGE_KEYFILENAME 
+})
+
+const bucket = storage.bucket(process.env.GCP_STORAGE_BUCKETNAME)
 
 const expedientes = async (req, res) =>{
-    //Verificar si se paso el usuario correctamente desde checkAuth
-    if(!req.usuario) return res.status(404).json({msg: 'Usuario No Autenticado'})
-
+    //Verificar si se autentico el usuario correctamente checkAuth
+    if(!req.usuario) return res.status(404).json({msg: 'Usuario No Autenticado,Vuevla a iniciar sesion'})
     try{
         //Enviar Los expedientes correspondientes
         const expedientes = await Expedientes.findAll({attributes: ['document','name','last_name']})
@@ -21,19 +23,18 @@ const expedientes = async (req, res) =>{
 }
 
 const registrarExpediente = async (req, res) => {
-    //Verificar si se paso el usuario correctamente desde checkAuth
-    if(!req.usuario) return res.status(404).json({msg: 'Hubo un error'})
-    // Verificar si el Documento ya esta reistrado
-    const expedienteExiste = await Expedientes.findOne({where:{document:req.body.document}})
-    if(expedienteExiste){
-        return res.status(404).json({msg: `Expediente de ${expedienteExiste.last_name} ya existe`})
-    }
-    try{
-        // Crear carpeta personal del expediente creado
-        
-        // Registrar Expediente
-        const newExpediente = await Expedientes.create(req.body)
+    //Verificar si se autentico el usuario correctamente desde checkAuth
+    if(!req.usuario) return res.status(404).json({msg: 'Usuario No Autenticado - Vuevla a iniciar secion'})
 
+    try{
+        // Verificar si el Documento ya esta reistrado
+        const expedienteExiste = await Expedientes.findOne({where:{document:req.body.document}})
+        if(expedienteExiste){
+            return res.status(404).json({msg: `Expediente de ${expedienteExiste.last_name} ya existe`})
+        }
+        // Creamos el expediente con la informacion recibida 
+        const newExpediente = await Expedientes.create(req.body)
+        // Cramos el directorio el principal unico
         await DocumentsUp.create({
             id: newExpediente.id,
             document_owner: newExpediente.document,
@@ -42,9 +43,9 @@ const registrarExpediente = async (req, res) => {
             type: 0,
             mimetype: 'folder',
             location_folderId: newExpediente.document,
-            location_path: newExpediente.document,
+            location_path: `documents/${newExpediente.document}`,
         })
-
+        // Cramos el directorio de tablas unico 
         await DocumentsUp.create({
             id: generarId(),
             document_owner: newExpediente.document,
@@ -53,248 +54,189 @@ const registrarExpediente = async (req, res) => {
             type: 0,
             mimetype: 'folder',
             location_folderId: newExpediente.id,
-            location_path: `tablas.${newExpediente.id}`,
+            location_path: `documents/${newExpediente.document}/tablas`,
         })
 
-        fs.mkdirSync(`${__pathDocuments}/${newExpediente.document}`)
-        fs.mkdirSync(`${__pathDocuments}/${newExpediente.document}/tablas`)
-
-        res.status(200).json({msg: 'Expediente Creado Correctamente'})
-    }catch(error){
-        console.log(error)
-        res.status(404).json({msg: 'Hubo un error al intentar registrar'})
+        return res.status(200).json({msg: `Registrado Correctamente`})
+    }catch(err){
+        return res.status(404).json({msg: `Hubo un error`})
     }
 }
 
 const expedientePv = async (req, res) => {
-    if(!req.usuario) return res.status(400).json({msg: 'Hubo un error'})
+     //Verificar si se autentico el usuario correctamente desde checkAuth
+     if(!req.usuario) return res.status(404).json({msg: 'Usuario No Autenticado - Vuevla a iniciar secion'})
 
     const {document} = req.body
 
     try{
+        // Buscamos el expediente por su documento unico
         const expediente = await Expedientes.findOne({where: {document}})
-        res.status(200).json(expediente)
+        return res.status(200).json(expediente)
     }catch(error){
-        res.status(400).json({msg: 'Solicitud Rechazada'})
+        return res.status(400).json({msg: 'Solicitud Rechazada'})
     }
 }
 
 const consultarDocumentosPv = async (req,res) => {
-    if(!req.usuario) return res.status(404).json({msg: 'Hubo un error, Vuelva a inisiar sesion'})
+     //Verificar si se autentico el usuario correctamente desde checkAuth
+     if(!req.usuario) return res.status(404).json({msg: 'Usuario No Autenticado - Vuevla a iniciar secion'})
     // Consultamos al propietario en los parametros recibidos
     const folderId = req.params.folderId
     try{
         // Recuperamos todos los documentos que estan registrados en el directorio proporsionado
         const folder = await DocumentsUp.findOne({where: {id: folderId}})
-
+        // Consultamos y ordenar los documentos (carpetas arriba, archivos abajo)
         const documents = await DocumentsUp.findAll({
             where: {location_folderId: folder.id},
-            // Ordenar los documentos (carpetas arriba, archivos abajo)
-            order: [['type', 'ASC'], ['name', 'ASC']]
+            order: [['type', 'ASC'], ['name', 'ASC']] 
         })
-
+        // Consultamos las tablas
         const tables = await DocumentsUp.findAll({
-            where: {document_owner: folder.document_owner, type: 2},
+            where: {document_owner: folder.document_owner, type: 2}
         })
-
+        // Creamos un objeto con toda la informacion necesaria
         const dataObj = {
             folderId,
-            path: folder.location_path,
             documents,
             tables
         }
-
-        res.status(200).json(dataObj)
-    }catch(error){
-        res.status(404).json({msg: 'No se Encontro Directorio'})
+        return res.status(200).json(dataObj)
+    }catch(err){
+        console.log(err)
+        return res.status(404).json({msg: 'No se Encontro Directorio'})
     }
 }
 
 const almacenarArchivos =  async (req, res) => {
-    if(!req.usuario) return res.status(404).json({msg: 'Hubo un error, Vuelva a inisiar sesion'})
-    
-    const files = req.files
-    // Sistema de verificacion
-    if(!files) return res.status(404).json({msg: 'Hubo un Error'})
-    if(!req.usuario) return res.status(400).json({msg: 'Usuario Invalido, Intente iniciar sesion nuevamente'})
+     //Verificar si se autentico el usuario correctamente desde checkAuth
+     if(!req.usuario) return res.status(404).json({msg: 'Usuario No Autenticado - Vuevla a iniciar secion'})
+    // Colocamos en una variable los archivos
+    const filesUp = req.files
+    // Verificamos si la variable no es nula
+    if(!filesUp) return res.status(404).json({msg: 'Hubo un Error'})
+    // Guardamos los archivos
     try{
-        // Iteramos sobre los archivos enviados y los guardamos uno x uno con (Nombre del archivo) + (Identificacion del propietario) + (Identificacion de quien suba el archivo).
-        await files.forEach(async element => {
-                await DocumentsUp.create({
-                id: generarId(), 
-                name: element.filename ,
-                document_owner: req.body.files,
-                uploadedby: req.usuario.document,
-                type: 1,
-                mimetype: element.mimetype,
-                location_folderId: req.params.folder,
+        // Consultamos el directorio donde se guardara con su ID
+        const folder = await DocumentsUp.findByPk(req.params.folder)
+        // Manejamos la subida del archivo
+        const uploadFiles = async (file) =>{
+            try{
+                // Cremos un objeto con la informacion y lo subimos a la base de datos
+                const newDocument = {
+                    id: generarId(),
+                    document_owner: folder.document_owner,
+                    name: file.originalname,
+                    uploadedby: req.usuario.document,
+                    type: 1,
+                    mimetype: file.mimetype,
+                    location_folderId: folder.id,
+                    location_path: `${folder.location_path}/${file.originalname}`
+                }
+                await DocumentsUp.create(newDocument)
+                // Retornamos una prmesa que se resolvera al terminar el proceso de escritura
+                return new Promise(async (resolve, reject) => {
+                    // Ruta (path) de referencia del archivo + nombre del archivo
+                    const fileUP = bucket.file(`${folder.location_path}/${file.originalname}`)
+                    // Subimos el archivo colocando su mimetype
+                    const stream = fileUP.createWriteStream({
+                        metadata: {
+                            contentType: file.mimetype,
+                            metadata: {
+                                custom: 'metadata'
+                            }
+                        },
+                        resumable: false // Para archivos de menos de 10 mb
+                    })
+                    .end(file.buffer) // Subimos el contenido
+                    .on('error', (err) => reject(err))
+                    .on('finish', () => {
+                        resolve('Upload Success')
+                    }) 
                 })
-        });
-        res.status(200).json({msg: 'Archivos Guardados Correctamente'})
-    }catch(error){
-        res.status(404).json({msg: `A Ocurrido Un Error`})
+            }catch(err){
+                throw new Error('Error al subir el archivo')
+            }
+        }
+        // Creamos un arreglo con una funcion por cada archivo recibido 
+        const uploadPromise = await filesUp.map(uploadFiles)
+        // esperamos a que las promesas se completen
+        await Promise.all(uploadPromise)
+
+        return res.status(200).json({msg: 'Archivos Subidos correctamente'})
+    }catch(err){
+        console.log(err)
+        return res.status(404).json({msg: 'Hubo un error'})
     }
 }
 // Buscador de archivos
 const opendFile = async (req,res) => {
-    
-    try{        
-        const {idFile} = (req.body)
+    //Verificar si se autentico el usuario correctamente desde checkAuth
+    if(!req.usuario) return res.status(404).json({msg: 'Usuario No Autenticado - Vuevla a iniciar secion'})
 
+    const {idFile} = (req.body)
+
+    try{
         // Buscamos el archivo
-        const file = await DocumentsUp.findByPk(idFile)
+        const fileDB = await DocumentsUp.findByPk(idFile)
         // Buscamos el directorio donde se guarda el archivo
-        const folderFather = await DocumentsUp.findByPk(file.location_folderId)
-        // Armamos el path principal
-        const mainPath = `${__pathDocuments}/${folderFather.document_owner}`
-    
-        if(!file || !folderFather)return res.status(404).json({msg: 'Hubo un error'})
-
-        if(folderFather.document_owner === folderFather.location_folderId){
-            // Si el archivo se encuentra en el directorio principal se arma el path correspondiente            
-            const fileContent = `${mainPath}/${file.name}`
-            // Leemosa el archivo y lo mandamos al cliente
-            if(!fs.existsSync(fileContent)) return res.status(404).json({msg: 'Archivo no existe'})
-
-            const fileStream = fs.createReadStream(fileContent);
-            fileStream.pipe(res);
-        }
-        else{
-            // Funcion para buscar el path completo del directorio padre donde se guardara el documento buscado
-            function location_path(path, location = undefined){
-                // Consulta todos los archivos del directorio principal
-                const directory = fs.readdirSync(path)
-                // Se itera en cada uno
-                for(let i = 0; i < directory.length; i++){
-                    // En caso de encontrar el directorio correcto se retorna el path + el directorio donde se encuentra el archivo
-                    if(directory[i] === folderFather.location_path ){
-                        return  `${path}/${directory[i]}`
-                    } 
-                    // Se verifica si el directorio no esta vacio
-                    if(directory[i]){
-                        const stat = fs.statSync(`${path}/${directory[i]}`)
-                        // En caso de que se encuentre un directorio se volvera a llamar la funcion
-                        if(stat.isDirectory()){
-                            const result = location_path(`${path}/${directory[i]}`, location)
-                            // Si se encontro el directorio padre donde se encuentra el archivo se retornara el resultado, si no se encuentra se seguira iterando en los demas directorios.
-                            if(result){
-                                return result
-                            }
-                        }
-                    }
-                }
-                // Por ultimo retornamos location con el path completo donde guardaremos el nuevo directorio
-                return location
-            }
-            // Consegiomos el path completo y le sumamos el nombre del archivo el cual es unico
-            const fileContent = location_path(mainPath) + '/' + file.name
-
-            if(!fs.existsSync(fileContent)) return res.status(404).json({msg: 'Archivo no existe'})
-
-            const fileStream = fs.createReadStream(fileContent);
-            fileStream.pipe(res);
-        }
-    }catch(error){
-        res.status(400).json({msg: 'Hubo un error'})
+        const file = bucket.file(fileDB.location_path)
+        // Verificamos si el archivo existe
+        const [exists] = await file.exists();
+        if (!exists)return res.status(404).json({msg: 'No se encontro el archivo'});
+        // Enviamos la informacion al cliente
+        const stream = file.createReadStream().pipe(res)
+        stream.on('error',(err) => {
+            console.log(err)
+            return res.status(404).json({msg: 'No se pudo leer el archivo'}) 
+        })
+        stream.on('end',() => res.end())
+    }catch(err){
+        console.log(err)
+        return res.status(404).json({msg: 'Hubo un error'});
     }
 }
 
 const saveNewFolder = async (req, res) => {
+     //Verificar si se autentico el usuario correctamente desde checkAuth
+     if(!req.usuario) return res.status(404).json({msg: 'Usuario No Autenticado - Vuevla a iniciar secion'})
+
+    const { newFolderName, saveInFolder } = req.body
 
     try{
-
-        if(!req.usuario) return res.status(404).json({msg: 'Hubo un error, Vuelva a inisiar sesion'})
-
-        const { saveInFolder } = req.body
-        
-        let newFolderName = req.body.newFolderName
-        // Consultamos el directorio padre
+        // Consultamos el directorio padre del nuevo directorio
         const folderFather = await DocumentsUp.findByPk(saveInFolder)
-        // Path del directorio principal
-        const mainPath = `${__pathDocuments}/${folderFather.document_owner}`
-        // Verificamos si ya existe un directorio con ese nombre
-        const existe = await DocumentsUp.findOne({
-            where:{
-                name: newFolderName,
-                location_folderId: folderFather.id
-            }})
-        // En caso de que existe un directorio con nombre similar se manda error
-        if(existe) return res.status(404).json({msg: 'Nombre de directorio registrado'})
-        // Si se intenta guardar en el directorio principal...
-        if(folderFather.document_owner === folderFather.location_folderId){ 
-            // En caso de que no existe se crea en la DB y luego se crea el directorio. Al directorio se le agregara un id unico, que se agregara al nombre del mismo en Disco y al location_path en DB "(nombre.id)". 
-            const id = generarId()
-            await DocumentsUp.create({
-                id,
-                document_owner: folderFather.document_owner,
-                name: newFolderName,
-                uploadedby: req.usuario.document,
-                type: 0,
-                mimetype: 'folder',
-                location_folderId: folderFather.id,
-                location_path: `${newFolderName}.${id}`
-            })
-            // Agregar el directori oen memoria con nombre + id
-            fs.mkdirSync(`${mainPath}/${newFolderName}.${id}`)
-        }else{
-            // Funcion para buscar el path completo del directorio padre donde se guardara el nuevo directorio
-            function location_path(path, location = undefined){
-                // Consulta todos los archivos del directorio
-                const directory = fs.readdirSync(path)
-                // Se itera en cada uno
-                for(let i = 0; i < directory.length; i++){
-                    // En caso de encontrar el directorio correcto se retorna el path + el nuevo directorio
-                    if(directory[i] === folderFather.location_path ){
-                        return  `${path}/${directory[i]}`
-                    } 
-                    // Se verifica si el directorio no esta vacio
-                    if(directory[i]){
-                        const stat = fs.statSync(`${path}/${directory[i]}`)
-                        // En caso de que se encuentre un directorio se volvera a llamar la funcion
-                        if(stat.isDirectory()){
-                            const result = location_path(`${path}/${directory[i]}`, location)
-                            // Si se encontro el directorio padre donde se guardara el nuevo directorio se retornara el resultado, si no se encuentra se seguira iterando en los demas directorios.
-                            if(result){
-                                return result
-                            }
-                        }
-                    }
-                }
-                // Por ultimo retornamos location con el path completo donde guardaremos el nuevo directorio
-                return location
-            }
-
-            const locationFolder = location_path(mainPath)
-            const id = generarId()
-
-            await DocumentsUp.create({
-                id,
-                document_owner: folderFather.document_owner,
-                name: newFolderName,
-                uploadedby: req.usuario.document,
-                type: 0,
-                mimetype: 'folder',
-                location_folderId: folderFather.id,
-                location_path: `${newFolderName}.${id}`
-            })
-
-            fs.mkdirSync(`${locationFolder}/${newFolderName}.${id}`)
-        }
-        return res.status(200).json({msg: 'Guardado correctamente '})
-    }catch(error){
-        return res.status(200).json({msg: 'Hubo un error'})
+        // Creamos la referencia del directorio en la base de datos
+        await DocumentsUp.create({
+            id: generarId(),
+            document_owner: folderFather.document_owner,
+            name: newFolderName,
+            uploadedby: req.usuario.document,
+            type: 0,
+            mimetype: 'folder',
+            location_folderId: folderFather.id,
+            location_path: `${folderFather.location_path}/${newFolderName}`
+        })
+        return res.status(200).json({msg: 'Agregando...'})
+    }catch(err){
+        console.log(err)
+        return res.status(404).json({msg: 'Hubo un error'})
     }
 }
 // Verificar el cambio de documento
 const saveNewData = async (req, res) => {
-    if(!req.usuario) return res.status(404).json({msg: 'Hubo un error, Vuelva a inisiar sesion'})
-    // Datos nuevos a actualizar
+     //Verificar si se autentico el usuario correctamente desde checkAuth
+     if(!req.usuario) return res.status(404).json({msg: 'Usuario No Autenticado - Vuevla a iniciar secion'})
+
+    // Obtenemos la nueva infromacion a actualizar
     const newData = req.body
+
     try{
         // En caso de que el documento ya este registrado devolvemos un error
         const documentRepete = await Expedientes.findOne({
             where:{document: newData.document}
         })
+
         if(documentRepete) return res.status(404).json({msg: 'El documento ya esta ocupado'})
 
         // Confirmamos el expediente
@@ -303,8 +245,8 @@ const saveNewData = async (req, res) => {
         await Expedientes.update(newData,{
             where:{id: expediente.id}
         })
-       
-        // if(parseInt(newData.document) !== expediente.document ){
+        // Verificar funcion de cambio de documento
+            // if(parseInt(newData.document) !== expediente.document ){
 
 
         //     await DocumentsUp.update(
@@ -326,58 +268,84 @@ const saveNewData = async (req, res) => {
         // }
 
         // Enviamos la informacion nueva al cliente en caso de ser actualizado 
-        
-        
         res.status(200).json(newData)
-    }catch(error){
-        console.log(error)
+    }catch(err){
         res.status(404).json({msg: 'Hubo un error'})
     }
 }
 
 const createNewTable = async (req, res) =>{
-    const {name, saveInFolder} = req.body
-    const newTable = JSON.stringify(req.body.newTable)
+     //Verificar si se autentico el usuario correctamente desde checkAuth
+     if(!req.usuario) return res.status(404).json({msg: 'Usuario No Autenticado - Vuevla a iniciar secion'})
+
+    const {name, saveInFolder, newTable} = req.body
     
     try{
-        const folderFather = await DocumentsUp.findOne({where:{location_path: `tablas.${saveInFolder}`}})
-
-        if(fs.existsSync((`${__pathDocuments}/${folderFather.document_owner}/tablas/${name}.txt`))){
-            res.status(404).json({msg: 'El nombre del archivo ya existe'})
-            return
-        }
-
-        await DocumentsUp.create({
-                id: generarId(),
-                document_owner: folderFather.document_owner,
-                name: `${name}.txt`,
-                uploadedby: req.usuario.document,
-                type: 2,
-                mimetype: 'text/plain',
-                location_folderId: folderFather.id,
-                location_path: `${name}.txt`
+        const folderFather = await DocumentsUp.findOne({
+            where:{
+                name: 'tablas',
+                location_folderId: saveInFolder
+            }
         })
-
-        fs.writeFileSync(`${__pathDocuments}/${folderFather.document_owner}/tablas/${name}.txt`, newTable, 'utf-8')
-
-        res.status(200).json({msg: 'Creado Correctamente'})
-    }catch(error){
-        res.status(500).json({msg: 'Hubo un error'})
+        // Creamos la referencia 
+        await DocumentsUp.create({
+            id: generarId(),
+            document_owner: folderFather.document_owner,
+            name,
+            uploadedby: req.usuario.document,
+            type: 2,
+            mimetype: 'text/plain',
+            location_folderId: folderFather.id,
+            location_path: `${folderFather.location_path}/${name}.txt`
+        })
+        // Creamos el objeto en la nube
+        const file = bucket.file(`${folderFather.location_path}/${name}.txt`)
+        // Creamos la tabla
+        const stream = file.createWriteStream({
+            metadata: {
+              contentType: 'text/plain',
+              metadata: {
+                custom: 'metadata',
+              },
+            },
+        }).end(newTable);
+  
+        await new Promise((resolve, reject) => {
+            stream.on('error', (err) => {
+                console.error('Error en el stream:', err);
+                reject(err);
+            })
+            stream.on('finish', () => {
+                resolve();
+            });
+        });
+        
+        return res.status(200).json({msg: 'Tabla Creada'})
+    }catch(err){
+        console.log(err)
+        return res.status(404).json({msg: 'Hubo un error'})
     }
 }
 
 const consultarTabla = async (req, res) => {
-    if(!req.usuario) return res.status(404).json({msg: 'Hubo un error, Vuelva a inisiar sesion'})
+     //Verificar si se autentico el usuario correctamente desde checkAuth
+     if(!req.usuario) return res.status(404).json({msg: 'Usuario No Autenticado - Vuevla a iniciar secion'})
 
     const {id} = (req.body)
+    // Consultamos tabla por su ID
     const table = await DocumentsUp.findByPk(id)
+
     try{
-        const file = path.join(__pathDocuments, `/${table.document_owner}/tablas/${table.name}`)
-        const content = fs.readFileSync(file, {encoding: 'utf-8'})
-        const text = JSON.parse(content)
-        res.status(200).json(text)
-    }catch(error){
-        res.status(404).json({msg: 'Hubo un error'})
+        // Buscamos la tabla por su referencia de la URL 
+        const file = bucket.file(table.location_path)
+        // Leemos el archivo y lo mandamos al cliente
+        const stream = file.createReadStream().pipe(res)
+        stream.on('error', ()=> {
+            return res.status(404).json({msg: 'No se encontro el archivo'}) 
+        })
+        stream.on('end', ()=> res.end())
+    }catch(err){
+        return res.status(404).json({msg: err})
     }
 }
 
@@ -385,14 +353,42 @@ const saveTable = async (req, res) => {
     if(!req.usuario) return res.status(404).json({msg: 'Hubo un error, Vuelva a inisiar sesion'})
     
     const table = await DocumentsUp.findByPk(req.body.id)
-    const newInfo = JSON.stringify(req.body.table)
-    try{
-        fs.writeFileSync(`${__pathDocuments}/${table.document_owner}/tablas/${table.name}`, newInfo, 'utf-8')
+    const newInfo = req.body.table
 
-        res.status(200).json({msg: 'Guardado Correctamente'})
-    }catch(error){
-        res.status(404).json({msg: 'Hubo un error'})
-    }
+    try {
+        const file = bucket.file(table.location_path);
+
+        const stream = file.createWriteStream({
+          metadata: {
+            contentType: 'text/plain',
+            metadata: {
+              custom: 'metadata',
+            },
+          },
+        }).end(newInfo);
+
+        await new Promise((resolve, reject) => {
+            stream.on('error', (err) => {
+                console.error('Error en el stream:', err);
+                reject(err);
+            })
+            stream.on('finish', () => {
+                resolve();
+            });
+        });
+
+        return res.status(200).json({ msg: 'Guardado correctamente' });
+      } catch (err) {
+        return res.status(404).json({ msg: 'Hubo un error' });
+      }
+
+    // try{
+    //     fs.writeFileSync(`${__pathDocuments}/${table.document_owner}/tablas/${table.name}`, newInfo, 'utf-8')
+
+    //     res.status(200).json({msg: 'Guardado Correctamente'})
+    // }catch(error){
+    //     res.status(404).json({msg: 'Hubo un error'})
+    // }
 }
 
 export {

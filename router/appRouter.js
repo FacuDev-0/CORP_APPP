@@ -22,62 +22,62 @@ import {
 const __dirname = new URL(import.meta.url).pathname.substring(1)
 const __pathDocuments = path.join(__dirname, '../../', 'documents')
 
-const storage = multer.diskStorage({
-    destination: async function(req,file,callback){
-        const folder = await DocumentsUp.findOne({where:{id: req.params.folder}})
-        const mainPath = `${__pathDocuments}/${folder.document_owner}`
-        // Carpeta "Tablas" exclusiva
-        if(folder.name === 'tablas')return callback(new MulterError())
+// const storage = multer.diskStorage({
+//     destination: async function(req,file,callback){
+//         const folder = await DocumentsUp.findOne({where:{id: req.params.folder}})
+//         const mainPath = `${__pathDocuments}/${folder.document_owner}`
+//         // Carpeta "Tablas" exclusiva
+//         if(folder.name === 'tablas')return callback(new MulterError())
 
-        if(folder.document_owner === folder.location_folderId){
-            req.body.folderPath = mainPath
-            callback(null, mainPath)
-        }else{
-            req.body.folderPath = (location_path(mainPath))
-            function location_path(path, location = ''){
-                const directory = fs.readdirSync(path)
+//         if(folder.document_owner === folder.location_folderId){
+//             req.body.folderPath = mainPath
+//             callback(null, mainPath)
+//         }else{
+//             req.body.folderPath = (location_path(mainPath))
+//             function location_path(path, location = ''){
+//                 const directory = fs.readdirSync(path)
                 
-                for(let i = 0; i < directory.length; i++){
+//                 for(let i = 0; i < directory.length; i++){
 
-                    if(directory[i] === folder.location_path){
-                        return `${path}/${folder.location_path}`
-                    }
-                    if(directory){
-                        const stat = fs.statSync(`${path}/${directory[i]}`)
-                        if(stat.isDirectory()){
-                            const result = location_path(`${path}/${directory[i]}`,location)
-                            if(result){
-                                return result
-                            }
-                        }
-                    }
-                }
-                return location
-            }
-            callback(null, req.body.folderPath)
-        }
-    },
-    filename: function(req, file, callback) {
+//                     if(directory[i] === folder.location_path){
+//                         return `${path}/${folder.location_path}`
+//                     }
+//                     if(directory){
+//                         const stat = fs.statSync(`${path}/${directory[i]}`)
+//                         if(stat.isDirectory()){
+//                             const result = location_path(`${path}/${directory[i]}`,location)
+//                             if(result){
+//                                 return result
+//                             }
+//                         }
+//                     }
+//                 }
+//                 return location
+//             }
+//             callback(null, req.body.folderPath)
+//         }
+//     },
+//     filename: function(req, file, callback) {
 
-        if(fs.existsSync(`${req.body.folderPath}/${file.originalname}`)){
+//         if(fs.existsSync(`${req.body.folderPath}/${file.originalname}`)){
 
-            const onlyExtension = path.extname(file.originalname)
-            const onlyName = path.basename(file.originalname, onlyExtension)
-            let copy = 1
-            let newName = `${onlyName}(${copy})${onlyExtension}`
+//             const onlyExtension = path.extname(file.originalname)
+//             const onlyName = path.basename(file.originalname, onlyExtension)
+//             let copy = 1
+//             let newName = `${onlyName}(${copy})${onlyExtension}`
             
-            while(fs.existsSync(`${req.body.folderPath}/${newName}`)){
-                copy++
-                newName = `${onlyName}(${copy})${onlyExtension}`
-            }
-            callback(null, newName);
-        }else{
-            callback(null, file.originalname)
-        }
-    }
-});
+//             while(fs.existsSync(`${req.body.folderPath}/${newName}`)){
+//                 copy++
+//                 newName = `${onlyName}(${copy})${onlyExtension}`
+//             }
+//             callback(null, newName);
+//         }else{
+//             callback(null, file.originalname)
+//         }
+//     }
+// });
 const upload = multer({
-    storage: storage,
+    storage: multer.memoryStorage(),
     limits: {
         // Configuración de límites
         files: 10, // Límite de 2 archivos

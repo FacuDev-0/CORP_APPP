@@ -5,7 +5,7 @@ import generarId from "../helpers/generarID.js"
 
 const storage = new Storage({
     projectId: process.env.GCP_STORAGE_PROJECTID,
-    keyFilename: process.env.GCP_STORAGE_KEYFILENAME 
+    keyFilename:process.env.GCP_STORAGE_KEYFILENAME 
 })
 
 const bucket = storage.bucket(process.env.GCP_STORAGE_BUCKETNAME)
@@ -232,12 +232,6 @@ const saveNewData = async (req, res) => {
     const newData = req.body
 
     try{
-        // En caso de que el documento ya este registrado devolvemos un error
-        const documentRepete = await Expedientes.findOne({
-            where:{document: newData.document}
-        })
-
-        if(documentRepete) return res.status(404).json({msg: 'El documento ya esta ocupado'})
 
         // Confirmamos el expediente
         const expediente = await Expedientes.findByPk(newData.id)
@@ -245,27 +239,6 @@ const saveNewData = async (req, res) => {
         await Expedientes.update(newData,{
             where:{id: expediente.id}
         })
-        // Verificar funcion de cambio de documento
-            // if(parseInt(newData.document) !== expediente.document ){
-
-
-        //     await DocumentsUp.update(
-        //         {
-        //         document_owner:newData.document,
-        //         name: newData.document,
-        //         location_folderId:newData.document,
-        //         location_path: newData.document
-        //         },
-        //         {where: {name: `${expediente.document}`}}
-        //     )
-        //     await DocumentsUp.update(
-        //         {document_owner: newData.document},
-        //         {where: {document_owner: expediente.document}}
-        //     )
-        //     const oldPath = `${__pathDocuments}/${expediente.document}`
-        //     fs.renameSync(oldPath, `${__pathDocuments}/${newData.document}`)
-        
-        // }
 
         // Enviamos la informacion nueva al cliente en caso de ser actualizado 
         res.status(200).json(newData)

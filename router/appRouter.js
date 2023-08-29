@@ -16,7 +16,8 @@ import {
     saveTable,
     consultarTabla,
     createNewTable,
-    opendFile
+    opendFile,
+    createOrder
 } from '../controllers/appController.js';
 
 const __dirname = new URL(import.meta.url).pathname.substring(1)
@@ -108,5 +109,11 @@ router.post('/createNewTable',chackAuth, createNewTable)
 router.post('/saveTable',chackAuth, saveTable)
 // Consultar tabla seleccionada
 router.post('/consultarTabla',chackAuth, consultarTabla)
+// Sistema de pago
+router.post('/create-order',createOrder)
+
+router.get('/success',createOrder)
+
+router.post('/notificacion', (req, res) => {console.log('notificacion')})
 
 export default router

@@ -2,12 +2,12 @@ import { Storage } from "@google-cloud/storage"
 import Expedientes from "../models/expediente.js"
 import DocumentsUp from "../models/documents.js"
 import generarId from "../helpers/generarID.js"
+import mercadopago from 'mercadopago'
 
 const storage = new Storage({
     projectId: process.env.GCP_STORAGE_PROJECTID,
     keyFilename:process.env.GCP_STORAGE_KEYFILENAME 
 })
-
 const bucket = storage.bucket(process.env.GCP_STORAGE_BUCKETNAME)
 
 const expedientes = async (req, res) =>{
@@ -232,7 +232,7 @@ const saveNewData = async (req, res) => {
     const newData = req.body
 
     try{
-
+        
         // Confirmamos el expediente
         const expediente = await Expedientes.findByPk(newData.id)
         // Lo editamos con la informacion proporcionada (newData)
@@ -364,6 +364,32 @@ const saveTable = async (req, res) => {
     // }
 }
 
+const createOrder = async (req, res) => {
+    const itms = req.body.items
+
+    mercadopago.configure({
+        access_token: process.env.ACCESS_TOKEN_MP
+    })
+
+    const preference = {
+        items: itms,
+        back_urls: {
+            success: 'http://localhost:5173/admin/success',
+            failure: 'http://localhost:5173/admin/success',
+            pending: 'http://localhost:5173/admin/success'
+        },
+        installments: 6,
+        statement_descriptor: "MINEGOCIO",
+        external_reference: "Reference_1234",
+        purpose: 'wallet_purchase',
+        auto_return: "approved",
+        // notification_url: 'https://86e3-2800-a4-2764-5900-fdbf-89cb-ebb1-2c79.ngrok.io/notificacion'
+    }
+
+    const result = await mercadopago.preferences.create(preference)
+    res.json(result.body.id)
+}
+
 export {
     expedientes,
     registrarExpediente,
@@ -375,5 +401,6 @@ export {
     saveTable,
     consultarTabla,
     createNewTable,
-    opendFile
+    opendFile,
+    createOrder
 }

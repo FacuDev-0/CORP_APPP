@@ -368,18 +368,18 @@ const createOrder = async (req, res) => {
     const itms = req.body.items
 
     mercadopago.configure({
-        access_token: process.env.ACCESS_TOKEN_MP
+        access_token: process.env.ACCESS_TOKEN_MP //process.env.ACCESS_TOKEN_MP
     })
 
     const preference = {
         items: itms,
         back_urls: {
             success: 'http://localhost:5173/admin/success',
-            failure: 'http://localhost:5173/admin/success',
-            pending: 'http://localhost:5173/admin/success'
+            failure: 'http://localhost:5173/admin/failure',
+            pending: 'http://localhost:5173/admin/pending'
         },
         installments: 6,
-        statement_descriptor: "MINEGOCIO",
+        statement_descriptor: "Arreglo Del Hogar",
         external_reference: "Reference_1234",
         purpose: 'wallet_purchase',
         auto_return: "approved",

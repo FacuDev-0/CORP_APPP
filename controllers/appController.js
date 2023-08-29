@@ -378,10 +378,6 @@ const createOrder = async (req, res) => {
             failure: 'http://localhost:5173/admin/failure',
             pending: 'http://localhost:5173/admin/pending'
         },
-        installments: 6,
-        statement_descriptor: "Arreglo Del Hogar",
-        external_reference: "Reference_1234",
-        purpose: 'wallet_purchase',
         auto_return: "approved",
         // notification_url: 'https://86e3-2800-a4-2764-5900-fdbf-89cb-ebb1-2c79.ngrok.io/notificacion'
     }
